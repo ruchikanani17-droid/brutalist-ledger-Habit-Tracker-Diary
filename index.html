@@ -62,24 +62,29 @@
         .controls button.good-btn:hover { background: #CCFF00; } 
         .controls button.bad-btn:hover { background: #FF0055; color: #FFF; } 
 
-        /* --- THE INFINITE CANVAS FIX --- */
+        /* --- THE INFINITE CANVAS FIX (WITH DESKTOP GAP SOLVED) --- */
         .journal-wrapper { 
             width: 100%; 
-            overflow-x: auto; /* Moves the scrollbar to the very bottom frame */
+            overflow-x: auto; 
             border-bottom: 4px solid #000; 
             -webkit-overflow-scrolling: touch; 
         }
         
-        /* Forces the table and chart to stay side-by-side forever */
         .journal-content { 
             display: flex; 
             align-items: stretch; 
-            min-width: max-content; 
-            flex-direction: row !important; /* CRITICAL: Never stack these! */
+            min-width: 100%; /* Forces it to span the full desktop width */
+            width: max-content; /* Allows it to overflow and scroll on mobile */
+            flex-direction: row !important; 
         }
 
-        .habit-section { border-right: 4px solid #000; background: #FFF; }
-        table { border-collapse: collapse; min-width: max-content; }
+        .habit-section { 
+            flex-grow: 1; /* Tells this specific section to stretch and absorb empty desktop space */
+            border-right: 4px solid #000; 
+            background: #FFF; 
+        }
+        
+        table { width: 100%; border-collapse: collapse; min-width: max-content; }
         tr { height: 50px; }
         
         th { 
@@ -87,13 +92,11 @@
             border-bottom: 4px solid #000; border-right: 2px solid #000; 
             text-transform: uppercase; background: #EAEAEA; white-space: nowrap; 
             position: relative; 
-            /* Notice native 'resize' is removed, JS handles it now */
         }
         
         td { text-align: center; font-size: 24px; font-weight: 900; border-bottom: 2px solid #000; border-right: 2px solid #000; cursor: pointer; user-select: none; background: #FFF; }
         td:hover { background-color: #F0F0F0; }
         
-        /* Sticky Date Column keeps context */
         .date-col { 
             font-size: 20px; width: 60px; min-width: 60px; 
             position: sticky; left: 0; background-color: #EAEAEA; 
@@ -104,16 +107,16 @@
         .touch-resizer {
             position: absolute;
             top: 0; right: 0;
-            width: 20px; /* Thicker grab area for fingers */
+            width: 20px; 
             height: 100%;
             cursor: col-resize;
             z-index: 20;
             background-color: transparent;
-            touch-action: none; /* CRITICAL: Stops the browser from scrolling when you drag */
+            touch-action: none; 
             transition: background-color 0.2s;
         }
         .touch-resizer:active, .touch-resizer:hover {
-            background-color: #CCFF00; /* Visual feedback so the user knows they grabbed it */
+            background-color: #CCFF00; 
         }
 
         .delete-col-btn { background: #FF0055; color: #FFF; border: 2px solid #000; font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 900; cursor: pointer; margin-left: 10px; padding: 2px 6px; box-shadow: 2px 2px 0px #000; transition: 0.1s; vertical-align: middle; }
@@ -285,8 +288,8 @@
         <div class="action-footer">
             <button class="big-action-btn btn-nuke" onclick="nukeMonth()">CLEAR MONTH</button>
             <div class="export-section">
-                <button id="exportBtn" class="big-action-btn btn-export">DOWNLOAD DATA</button>
-                <p class="subtext">Download... to never lose your data</p>
+                <button id="exportBtn" class="big-action-btn btn-export">DOWNLOAD SPREADSHEET</button>
+                <p class="subtext">Export data to Excel or Google Sheets</p>
             </div>
         </div>
     </div>
@@ -438,11 +441,10 @@
             buildLedger(); 
             setTimeout(drawChartLines, 50); 
             
-            // FIRE UP THE NEW TOUCH RESIZERS
+            // Activate the resizers after building the table
             initPointerResizers();
         }
 
-        // --- MODERN POINTER RESIZER (FIXES MOBILE SCROLL CONFLICTS) ---
         function initPointerResizers() {
             const cols = document.querySelectorAll('th');
             cols.forEach(col => {
@@ -456,15 +458,14 @@
                 let startX, startWidth;
 
                 resizer.addEventListener('pointerdown', (e) => {
-                    e.preventDefault(); // Prevents weird mobile text highlighting
-                    resizer.setPointerCapture(e.pointerId); // Locks the touch to this exact element
+                    e.preventDefault(); 
+                    resizer.setPointerCapture(e.pointerId); 
                     
                     startX = e.clientX;
                     startWidth = parseInt(window.getComputedStyle(col).width, 10);
 
                     const onPointerMove = (e) => {
                         const dx = e.clientX - startX;
-                        // The Math.max(60, ...) stops the user from making a column narrower than 60px!
                         col.style.width = `${Math.max(60, startWidth + dx)}px`; 
                     };
 
@@ -487,7 +488,6 @@
         function prevMonth() { currentDisplayedMonth--; if (currentDisplayedMonth < 0) { currentDisplayedMonth = 11; currentDisplayedYear--; } loadMonthData(); }
         function nextMonth() { currentDisplayedMonth++; if (currentDisplayedMonth > 11) { currentDisplayedMonth = 0; currentDisplayedYear++; } loadMonthData(); }
 
-        // --- Ledger Rendering ---
         function buildLedger() {
             const ledgerContainer = document.getElementById('ledger-entries');
             ledgerContainer.innerHTML = '';
@@ -673,14 +673,16 @@
             loadMonthData(); 
         }
 
+        // --- SPREADSHEET (CSV) EXPORT FUNCTION USING BLOB ---
         document.getElementById('exportBtn').addEventListener('click', () => {
-            // 1. Setup Spreadsheet Headers
-            let csvContent = "data:text/csv;charset=utf-8,";
+            let csvContent = ""; // Start empty, no data:text/csv header needed for Blobs
             let headers = ["Day", "Daily Total ($)", "Expenses Itemized", "Diary Log"];
-            habitsList.forEach(h => headers.push(h.name)); // Add custom habits to headers
+            
+            // Add custom habits to the headers
+            habitsList.forEach(h => headers.push(h.name));
             csvContent += headers.join(",") + "\n";
 
-            // 2. Loop through the month and build the rows
+            // Loop through the month and build the rows
             for (let i = 0; i < daysInMonth; i++) {
                 let day = i + 1;
                 
@@ -698,7 +700,7 @@
                     }
                 });
 
-                // 3. Assemble the row data
+                // Assemble the row data
                 let row = [
                     day, 
                     dailyTotal.toFixed(2), 
@@ -714,14 +716,14 @@
                 csvContent += row.join(",") + "\n";
             }
 
-            // 4. Trigger the download
-            const encodedUri = encodeURI(csvContent);
+            // The safer Blob method! Creates an actual file in memory
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const a = document.createElement('a');
-            a.setAttribute("href", encodedUri);
-            a.setAttribute("download", `Ledger_${monthNames[currentDisplayedMonth]}_${currentDisplayedYear}.csv`);
+            a.href = URL.createObjectURL(blob);
+            a.download = `Ledger_${monthNames[currentDisplayedMonth]}_${currentDisplayedYear}.csv`;
             document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
+            document.body.removeChild(a); // Clean up after downloading
         });
 
         new ResizeObserver(drawChartLines).observe(document.getElementById('chart-section'));
