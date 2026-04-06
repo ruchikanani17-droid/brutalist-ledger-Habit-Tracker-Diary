@@ -674,12 +674,54 @@
         }
 
         document.getElementById('exportBtn').addEventListener('click', () => {
-            const appData = JSON.stringify(localStorage, null, 2);
-            const blob = new Blob([appData], { type: 'application/json' });
+            // 1. Setup Spreadsheet Headers
+            let csvContent = "data:text/csv;charset=utf-8,";
+            let headers = ["Day", "Daily Total ($)", "Expenses Itemized", "Diary Log"];
+            habitsList.forEach(h => headers.push(h.name)); // Add custom habits to headers
+            csvContent += headers.join(",") + "\n";
+
+            // 2. Loop through the month and build the rows
+            for (let i = 0; i < daysInMonth; i++) {
+                let day = i + 1;
+                
+                // Clean up text so commas or line breaks don't break the spreadsheet columns
+                let log = (diaryEntries[i] || "").replace(/"/g, '""').replace(/\n/g, '  |  '); 
+                let expText = (expenseEntries[i] || "").replace(/"/g, '""').replace(/\n/g, '  |  ');
+                
+                // Calculate the total money spent that specific day
+                let dailyTotal = 0;
+                let expLines = (expenseEntries[i] || "").split('\n');
+                expLines.forEach(line => {
+                    const nums = line.match(/[-+]?[0-9]*\.?[0-9]+/g);
+                    if (nums && nums.length > 0) {
+                        dailyTotal += parseFloat(nums[nums.length - 1]);
+                    }
+                });
+
+                // 3. Assemble the row data
+                let row = [
+                    day, 
+                    dailyTotal.toFixed(2), 
+                    `"${expText}"`, 
+                    `"${log}"`
+                ];
+                
+                // Add the habit checkmarks for that day
+                habitsList.forEach((h, hIndex) => {
+                     row.push(habitGrid[i][hIndex] || "");
+                });
+                
+                csvContent += row.join(",") + "\n";
+            }
+
+            // 4. Trigger the download
+            const encodedUri = encodeURI(csvContent);
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `brutal_ledger_backup_${new Date().getTime()}.json`; 
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            a.setAttribute("href", encodedUri);
+            a.setAttribute("download", `Ledger_${monthNames[currentDisplayedMonth]}_${currentDisplayedYear}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         });
 
         new ResizeObserver(drawChartLines).observe(document.getElementById('chart-section'));
